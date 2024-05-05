@@ -23,6 +23,7 @@ limitations under the License.
 #include "xla/hlo/ir/hlo_instruction.h"
 #include "xla/service/gpu/fusions/tiling_util.h"
 #include "xla/service/gpu/hlo_fusion_analysis.h"
+#include "xla/service/gpu/launch_dimensions.h"
 #include "xla/service/gpu/model/indexing_map.h"
 #include "xla/shape.h"
 
@@ -74,6 +75,9 @@ class ReductionInfo {
         is_race_free_(is_race_free),
         groups_(std::move(groups)),
         first_reduce_(first_reduce) {}
+
+  void AddGroupIdConstraint(IndexingMap& map, int64_t root_index,
+                            mlir::MLIRContext* ctx) const;
 
   const HloFusionAnalysis& analysis_;
   Tiling tiling_;

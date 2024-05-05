@@ -1,4 +1,4 @@
-/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2019 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -242,7 +242,6 @@ bool MklEagerOpRewrite::RewriteConv2D(EagerOperation* op) {
 bool MklEagerOpRewrite::RewriteSparseMatrixMatMul(EagerOperation* op) {
   const NodeDef& ndef = op->MutableAttrs()->BuildNodeDef();
   DataType T;
-  const TensorProto* proto = nullptr;
   Tensor tensor;
   bool adjoint_a, adjoint_b, transpose_a, transpose_b, transpose_out;
 

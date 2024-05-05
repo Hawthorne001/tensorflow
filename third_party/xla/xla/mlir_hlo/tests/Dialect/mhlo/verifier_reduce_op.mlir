@@ -136,7 +136,7 @@ func.func @reduce_diferent_input_shapes(%arg0: tensor<2x3xf32>, %arg1: tensor<3x
 func.func @reduce_oob_dims(%arg0: tensor<?x?xf32>, %arg1 : tensor<f32>)
     -> (tensor<?xf32>) {
 
-  // expected-error@+1 {{Out-of-bounds dimension 2, expected to be less than the input-tensor rank 2}}
+  // expected-error@+1 {{Out-of-bounds dimension 2, expected to be in range [0, 2)}}
   %0 = "mhlo.reduce"(%arg0, %arg1) ({
 
   ^bb0(%arg2: tensor<f32>, %arg3: tensor<f32> ):
@@ -471,7 +471,7 @@ func.func @reduce_verify_rettype(%arg0: tensor<?x?xf32>, %arg1 : tensor<f32>)
 // -----
 
 func.func @reduce_parsing_pretty_reduce_non_commutative(%arg0: tensor<?x?xf32> , %arg1: tensor<f32> ) -> tensor<?xf32> {
-  // expected-error@+1 {{expected the inner-op to be a commutative binary-op that matching the reduce op dialect, with zero region, producing single result}}
+  // expected-error@+1 {{expected the inner-op to be a commutative binary-op from the mhlo dialect, with zero region, producing single result}}
  %0 = mhlo.reduce(%arg0 init: %arg1) applies mhlo.divide across dimensions = [1] : (tensor<?x?xf32>, tensor<f32>) -> tensor<?xf32> loc("foo")
  func.return %0 : tensor<?xf32>
 }
@@ -479,7 +479,7 @@ func.func @reduce_parsing_pretty_reduce_non_commutative(%arg0: tensor<?x?xf32> ,
 // -----
 
 func.func @reduce_parsing_pretty_reduce_wrong_dialect(%arg0: tensor<?x?xf32> , %arg1: tensor<f32> ) -> tensor<?xf32> {
-  // expected-error@+1 {{expected the inner-op to be a commutative binary-op that matching the reduce op dialect, with zero region, producing single result}}
+  // expected-error@+1 {{expected the inner-op to be a commutative binary-op from the mhlo dialect, with zero region, producing single result}}
  %0 = mhlo.reduce(%arg0 init: %arg1) applies std.add across dimensions = [1] : (tensor<?x?xf32>, tensor<f32>) -> tensor<?xf32> loc("foo")
  func.return %0 : tensor<?xf32>
 }
@@ -487,7 +487,7 @@ func.func @reduce_parsing_pretty_reduce_wrong_dialect(%arg0: tensor<?x?xf32> , %
 // -----
 
 func.func @reduce_parsing_pretty_reduce_non_binary(%arg0: tensor<?x?xf32> , %arg1: tensor<f32> ) -> tensor<?xf32> {
-  // expected-error@+1 {{expected the inner-op to be a commutative binary-op that matching the reduce op dialect, with zero region, producing single result}}
+  // expected-error@+1 {{expected the inner-op to be a commutative binary-op from the mhlo dialect, with zero region, producing single result}}
  %0 = mhlo.reduce(%arg0 init: %arg1) applies mhlo.reshape across dimensions = [1] : (tensor<?x?xf32>, tensor<f32>) -> tensor<?xf32> loc("foo")
  func.return %0 : tensor<?xf32>
 }

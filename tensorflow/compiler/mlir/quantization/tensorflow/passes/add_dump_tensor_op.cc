@@ -38,8 +38,8 @@ limitations under the License.
 #include "mlir/Support/TypeID.h"  // from @llvm-project
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/lite/quantization/ir/QuantOps.h"
-#include "tensorflow/compiler/mlir/lite/quantization/quantization_utils.h"
 #include "tensorflow/compiler/mlir/quantization/common/attrs_and_constraints.h"
+#include "tensorflow/compiler/mlir/quantization/common/quantization_lib/quantization_utils.h"
 #include "tensorflow/compiler/mlir/quantization/stablehlo/quantization_config.pb.h"
 #include "tensorflow/compiler/mlir/quantization/tensorflow/cc/quantization_unit_loc.h"
 #include "tensorflow/compiler/mlir/quantization/tensorflow/passes/passes.h"
@@ -182,7 +182,7 @@ class AddDumpTensorOp : public OpRewritePattern<LiftedOpT> {
         rewriter.getNamedAttr("file_name", rewriter.getStringAttr(file_name)),
         // The op is disabled by default. Otherwise, values will be saved
         // during calibration.
-        rewriter.getNamedAttr("enabled", rewriter.getBoolAttr(false)),
+        rewriter.getNamedAttr("enabled", rewriter.getBoolAttr(enabled)),
         rewriter.getNamedAttr("func_name", rewriter.getStringAttr(func_name)),
         rewriter.getNamedAttr("node_name", rewriter.getStringAttr(node_name)),
     };
@@ -246,7 +246,7 @@ class AddDumpTensorOp : public OpRewritePattern<LiftedOpT> {
     // Attach DumpTensorOp to its output layer.
     SmallVector<NamedAttribute> dump_attributes =
         CreateDumpAttributes(rewriter, folder_name, file_name,
-                             /*enabled=*/false, func_name, node_name);
+                             /*enabled=*/true, func_name, node_name);
     rewriter.create<TF::DumpTensorOp>(op->getLoc(), TypeRange{}, result,
                                       dump_attributes);
 
@@ -261,7 +261,7 @@ class AddDumpTensorOp : public OpRewritePattern<LiftedOpT> {
       // Attach second DumpTensorOp to its output unquantized layer.
       SmallVector<NamedAttribute> dump_attributes = CreateDumpAttributes(
           rewriter, folder_name, /*file_name=*/"unquantized_tensor_data.pb",
-          /*enabled=*/false, func_name, node_name);
+          /*enabled=*/true, func_name, node_name);
       rewriter.create<TF::DumpTensorOp>(op.getLoc(), TypeRange{},
                                         new_op->getResult(0), dump_attributes);
 

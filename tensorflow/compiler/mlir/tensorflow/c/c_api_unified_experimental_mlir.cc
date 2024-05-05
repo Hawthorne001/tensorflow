@@ -19,6 +19,7 @@ limitations under the License.
 #include <string>
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -55,11 +56,15 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/utils/convert_type.h"
 #include "tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.h"
 #include "tensorflow/compiler/mlir/tensorflow/utils/error_util.h"
+#include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/node_def_util.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.pb.h"
 #include "tensorflow/core/lib/llvm_rtti/llvm_rtti.h"
 #include "tensorflow/core/platform/errors.h"
+#include "tensorflow/core/platform/refcount.h"
+#include "tsl/platform/errors.h"
+#include "tsl/platform/statusor.h"
 
 namespace mlir {
 namespace TF {
@@ -116,7 +121,7 @@ class MlirTensor : public TracingTensorHandle {
 
   Value getValue() { return value_; }
   Type getElementType() {
-    return value_.getType().cast<ShapedType>().getElementType();
+    return mlir::cast<ShapedType>(value_.getType()).getElementType();
   }
 
   // For LLVM style RTTI.
@@ -233,7 +238,10 @@ class MlirFunction : public AbstractFunction {
         module_(std::move(module)),
         func_(func) {}
 
-  Status GetFunctionDef(tensorflow::FunctionDef** f) override;
+  Status GetFunctionDef(const tensorflow::FunctionDef** f) override;
+
+  absl::StatusOr<tensorflow::core::RefCountPtr<tensorflow::FunctionRecord>>
+  GetFunctionRecord() override;
 
   // For LLVM style RTTI.
   static bool classof(const AbstractFunction* ptr) {
@@ -244,7 +252,7 @@ class MlirFunction : public AbstractFunction {
   std::unique_ptr<MLIRContext> context_;
   OwningOpRef<mlir::ModuleOp> module_;
   func::FuncOp func_;
-  std::unique_ptr<tensorflow::FunctionDef> fdef_;
+  tensorflow::core::RefCountPtr<tensorflow::FunctionRecord> func_record_;
 };
 
 class MlirFunctionContext : public TracingContext {
@@ -332,11 +340,11 @@ Status MlirAbstractOp::SetOpName(const char* const op_name) {
 
 Status MlirAbstractOp::AddRef(Type type, Type* output_type) {
   Type elt_type = getElementTypeOrSelf(type);
-  if (elt_type.isa<mlir::TF::TensorFlowRefType>()) {
+  if (mlir::isa<mlir::TF::TensorFlowRefType>(elt_type)) {
     return InvalidArgument("Requested reference to a reference type");
   }
   elt_type = TensorFlowRefType::get(elt_type);
-  if (RankedTensorType tensor_type = type.dyn_cast<RankedTensorType>()) {
+  if (RankedTensorType tensor_type = mlir::dyn_cast<RankedTensorType>(type)) {
     *output_type = RankedTensorType::get(tensor_type.getShape(), elt_type);
   }
   *output_type = UnrankedTensorType::get(elt_type);
@@ -365,11 +373,11 @@ Status MlirAbstractOp::Create(ArrayRef<Value> operands,
         return InvalidArgument("Missing attribute '", output_arg.number_attr(),
                                "' required for output list '",
                                output_arg.name(), "'");
-      if (!repeats_attr.isa<IntegerAttr>())
+      if (!mlir::isa<IntegerAttr>(repeats_attr))
         return InvalidArgument("Attribute '", output_arg.number_attr(),
                                "' required for output list '",
                                output_arg.name(), "' isn't an integer");
-      int64_t repeats = repeats_attr.cast<IntegerAttr>().getInt();
+      int64_t repeats = mlir::cast<IntegerAttr>(repeats_attr).getInt();
 
       if (!output_arg.type_attr().empty()) {
         // Same type repeated "repeats" times.
@@ -378,7 +386,7 @@ Status MlirAbstractOp::Create(ArrayRef<Value> operands,
           return InvalidArgument("Missing attribute '", output_arg.type_attr(),
                                  "' required for output '", output_arg.name(),
                                  "'");
-        TypedAttr type_attr = attr.dyn_cast<TypedAttr>();
+        TypedAttr type_attr = mlir::dyn_cast<TypedAttr>(attr);
         if (!type_attr)
           return InvalidArgument("Attribute '", output_arg.type_attr(),
                                  "' required for output '", output_arg.name(),
@@ -402,7 +410,7 @@ Status MlirAbstractOp::Create(ArrayRef<Value> operands,
         return InvalidArgument("Missing attribute '", output_arg.type_attr(),
                                "' required for output '", output_arg.name(),
                                "'");
-      TypeAttr type_attr = attr.dyn_cast<TypeAttr>();
+      TypeAttr type_attr = mlir::dyn_cast<TypeAttr>(attr);
       if (!type_attr)
         return InvalidArgument("Attribute '", output_arg.type_attr(),
                                "' required for output '", output_arg.name(),
@@ -415,13 +423,13 @@ Status MlirAbstractOp::Create(ArrayRef<Value> operands,
         return InvalidArgument(
             "Missing attribute '", output_arg.type_list_attr(),
             "' required for output '", output_arg.name(), "'");
-      ArrayAttr array_attr = attr.dyn_cast<ArrayAttr>();
+      ArrayAttr array_attr = mlir::dyn_cast<ArrayAttr>(attr);
       if (!array_attr)
         return InvalidArgument("Attribute '", output_arg.type_list_attr(),
                                "' required for output '", output_arg.name(),
                                "' isn't an array attribute");
       for (Attribute attr : array_attr) {
-        TypeAttr type_attr = attr.dyn_cast<TypeAttr>();
+        TypeAttr type_attr = mlir::dyn_cast<TypeAttr>(attr);
         if (!type_attr)
           return InvalidArgument("Array Attribute '",
                                  output_arg.type_list_attr(),
@@ -526,10 +534,18 @@ Status MlirAbstractOp::SetAttrFunctionList(
   return Unimplemented("SetAttrFunctionList has not been implemented yet.");
 }
 
-Status MlirFunction::GetFunctionDef(tensorflow::FunctionDef** f) {
-  if (fdef_) {
-    *f = fdef_.get();
-    return absl::OkStatus();
+Status MlirFunction::GetFunctionDef(const tensorflow::FunctionDef** f) {
+  if (!func_record_) {
+    TF_ASSIGN_OR_RETURN(auto func_record, GetFunctionRecord());
+  }
+  *f = &func_record_->fdef();
+  return absl::OkStatus();
+}
+
+absl::StatusOr<tensorflow::core::RefCountPtr<tensorflow::FunctionRecord>>
+MlirFunction::GetFunctionRecord() {
+  if (func_record_) {
+    return func_record_.GetNewRef();
   }
   PassManager pm(func_.getContext());
   ::tensorflow::applyTensorflowAndCLOptions(pm);
@@ -545,11 +561,14 @@ Status MlirFunction::GetFunctionDef(tensorflow::FunctionDef** f) {
   TF_RETURN_IF_ERROR(diag_handler.ConsumeStatus());
 
   tensorflow::GraphExportConfig configs;
-  fdef_ = std::make_unique<tensorflow::FunctionDef>();
+
+  tensorflow::FunctionDef fdef;
   TF_RETURN_IF_ERROR(
-      ConvertMlirFunctionToFunctionLibraryDef(func_, configs, fdef_.get()));
-  *f = fdef_.get();
-  return absl::OkStatus();
+      ConvertMlirFunctionToFunctionLibraryDef(func_, configs, &fdef));
+  func_record_ = tensorflow::core::RefCountPtr<tensorflow::FunctionRecord>(
+      new tensorflow::FunctionRecord(std::move(fdef), {}, true));
+
+  return func_record_.GetNewRef();
 }
 
 Status MlirAbstractOp::Execute(absl::Span<AbstractTensorHandle*> retvals,

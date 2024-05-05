@@ -178,6 +178,10 @@ class ShapeInference {
   static absl::StatusOr<Shape> InferAllToAllTupleShape(
       absl::Span<const Shape* const> operand_shapes);
 
+  // Infers the shape of a collective broadcast operation.
+  static absl::StatusOr<Shape> InferCollectiveBroadcastShape(
+      absl::Span<const Shape* const> operand_shapes);
+
   // Infers the shape of a collective permute operation.
   static absl::StatusOr<Shape> InferCollectivePermuteShape(
       absl::Span<const Shape* const> operand_shapes);
@@ -427,6 +431,9 @@ class ShapeInference {
   // (for example ComputationBuilder::AddInDim). smaller_shape must be a
   // lower-rank shape than larger_shape. Returns the shape that the
   // smaller_shape is broadcast to.
+  //
+  // Since this method is only used by InferBinaryOpShape transitively, this
+  // method also supports inference of unbounded dynamic dimensions.
   static absl::StatusOr<Shape> InferInDimBroadcastShape(
       const Shape& smaller_shape, const Shape& larger_shape,
       absl::Span<const int64_t> broadcast_dimensions);

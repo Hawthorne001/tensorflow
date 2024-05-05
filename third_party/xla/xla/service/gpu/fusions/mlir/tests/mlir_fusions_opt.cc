@@ -15,6 +15,8 @@ limitations under the License.
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"  // from @llvm-project
 #include "mlir/Dialect/Arith/IR/Arith.h"  // from @llvm-project
+#include "mlir/Dialect/Complex/IR/Complex.h"  // from @llvm-project
+#include "mlir/Dialect/DLTI/DLTI.h"  // from @llvm-project
 #include "mlir/Dialect/Func/Extensions/AllExtensions.h"  // from @llvm-project
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"  // from @llvm-project
@@ -31,8 +33,9 @@ limitations under the License.
 
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
-  registry.insert<mlir::tensor::TensorDialect, mlir::func::FuncDialect,
-                  mlir::affine::AffineDialect, mlir::arith::ArithDialect,
+  registry.insert<mlir::DLTIDialect, mlir::tensor::TensorDialect,
+                  mlir::func::FuncDialect, mlir::affine::AffineDialect,
+                  mlir::arith::ArithDialect, mlir::complex::ComplexDialect,
                   mlir::math::MathDialect, mlir::scf::SCFDialect,
                   mlir::mhlo::MhloDialect, mlir::LLVM::LLVMDialect,
                   mlir::gpu::GPUDialect, mlir::mhlo::MhloDialect,

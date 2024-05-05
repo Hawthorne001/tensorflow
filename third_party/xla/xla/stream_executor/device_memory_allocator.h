@@ -69,19 +69,6 @@ class ScopedDeviceMemory {
     DCHECK_GE(device_ordinal_, 0);
   }
 
-  // A helper constructor to generate a scoped device memory given an already
-  // allocated memory and a stream executor.
-  //
-  // Precondition: memory was allocated by the stream executor `parent`.
-  ScopedDeviceMemory(StreamExecutor *parent, DeviceMemoryBase value);
-
-  // Constructor overload that places a literal array into device memory.
-  //
-  // Relies on the allocation function exposed by the stream executor `parent`,
-  // which will be also used for deallocating the memory
-  ScopedDeviceMemory(StreamExecutor *parent,
-                     std::initializer_list<ElemT> values);
-
   // Moves ownership of the memory from other to the constructed
   // object.
   //
